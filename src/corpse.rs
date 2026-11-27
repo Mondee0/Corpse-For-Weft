@@ -49,8 +49,7 @@ fn lying_humanoid() -> Model {
     let parts = standing
         .parts
         .into_iter()
-        .enumerate()
-        .map(|(index, mut part)| {
+        .map(|mut part| {
             // A quarter turn about x: the face (-z in model space) ends up pointing up.
             // The +4 pixels lift the body so it rests on the grass instead of half inside it.
             part.pivot = [part.pivot[0], 4.0 - part.pivot[2], part.pivot[1]];
@@ -74,8 +73,9 @@ fn lying_humanoid() -> Model {
                     [old_faces[0], old_faces[1], old_faces[5], old_faces[4], old_faces[2], old_faces[3]]
                 };
             }
-            // Inert bone names: no head look, no limb swings, no hair layer added by the engine.
-            part.name = format!("corpse{index}");
+            // Keep the bone names: they are what armour and the held item attach to. The lying
+            // face is mapped explicitly, so the engine's skin layer and head look have nothing
+            // to change here.
             part
         })
         .collect();
@@ -155,12 +155,12 @@ fn on_death(b: &EventBatch<abi::Death>) {
         if d.kind != PLAYER.id() || settings::KEEP_INVENTORY.get() {
             continue;
         }
-        let yaw = w.entity(d.entity).map_or(0.0, |e| e.yaw);
+        let (yaw, selected) = w.entity(d.entity).map_or((0.0, 0), |e| (e.yaw, e.selected));
         let corpse = w.spawn_with(&CORPSE, d.pos, &Spawn::new().yaw(yaw));
         if corpse == 0 {
             continue;
         }
-        w.entity_modify(corpse).persistent(true);
+        w.entity_modify(corpse).persistent(true).selected(selected);
         if let Some(facing) = w.component_mut(corpse, &FACING) {
             *facing = yaw;
         }
