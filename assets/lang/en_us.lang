@@ -1,0 +1,7 @@
+mod.corpse.name = Corpse
+mod.corpse.description = A body is left where you die, holding everything you carried. Take it all and it turns into a skeleton. The skin texture can be replaced with a resource pack.
+mod.corpse.authors = Cloud
+mod.corpse.url = https://github.com/Mondee0/Corpse-For-Weft
+
+menu.corpse.corpse = Corpse
+corpse.transfer = Transfer Items
