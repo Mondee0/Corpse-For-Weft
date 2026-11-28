@@ -20,66 +20,25 @@ static FACING: Component<f32> = Component::named("corpse:facing");
 /// Two minutes after the corpse is emptied it fades away. A body with items never times out.
 const AFTER_EMPTY_TICKS: u64 = 2 * 60 * 20;
 
-/// The classic box unwrap, in the engine's face order: -X, +X, -Y, +Y, -Z, +Z.
-fn skin_faces(uv: [f32; 2], size: [f32; 3], mirror: bool) -> [[f32; 4]; 6] {
-    let [w, h, d] = size;
-    let [u, v] = uv;
-    let mut faces = [
-        [u + d + w, v + d, d, h],
-        [u, v + d, d, h],
-        [u + d + w, v, w, d],
-        [u + d + w, v + d, -w, -d],
-        [u + d, v + d, w, h],
-        [u + d * 2.0 + w, v + d, w, h],
-    ];
-    if mirror {
-        faces.swap(0, 1);
-        for f in &mut faces {
-            f[0] += f[2];
-            f[2] = -f[2];
+/// The player's skin laid out along the ground. The whole *bone* is rotated a quarter turn, not
+/// just its boxes: that keeps the skin mapping, the armour and the item in the hand lined up with
+/// the body. The +4 pixels lift the figure off the grass.
+fn lying_humanoid() -> Model {
+    use std::f32::consts::FRAC_PI_2;
+    let mut model = humanoid(false);
+    for part in &mut model.parts {
+        part.pivot = [part.pivot[0], 4.0 - part.pivot[2], part.pivot[1]];
+        part.rest = [FRAC_PI_2, 0.0, 0.0];
+        if part.name == "head" {
+            // Nudge the head down and toward the shoulders in the original coordinates, which
+            // become a lower/nearer position after the quarter turn.
+            for box_ in &mut part.boxes {
+                box_.origin[1] -= 2.0;
+                box_.origin[2] += 1.5;
+            }
         }
     }
-    faces
-}
-
-/// The player's skin laid out along the ground. Forced poses are only honoured on the local
-/// player, so a body has to be built lying down rather than stood up and then tipped over.
-fn lying_humanoid() -> Model {
-    let standing = humanoid(false);
-    let parts = standing
-        .parts
-        .into_iter()
-        .map(|mut part| {
-            // A quarter turn about x: the face (-z in model space) ends up pointing up.
-            // The +4 pixels lift the body so it rests on the grass instead of half inside it.
-            part.pivot = [part.pivot[0], 4.0 - part.pivot[2], part.pivot[1]];
-            let head = part.name == "head";
-            for box_ in &mut part.boxes {
-                let old_faces = skin_faces(box_.uv, box_.extent, box_.mirror != 0);
-                box_.origin = [box_.origin[0], -box_.origin[2], box_.origin[1]];
-                box_.extent = [box_.extent[0], box_.extent[2], box_.extent[1]];
-                if head {
-                    // Centred between the shoulders, not sitting on top of or sunk below them.
-                    box_.origin[1] -= 1.5;
-                    box_.origin[2] -= 2.0;
-                }
-                // Give the head its own mapping: the face texels go on the upward face. The
-                // other parts just follow the rotation of the classic unwrap.
-                box_.per_face = 1;
-                box_.faces = if head {
-                    [[16.0, 8.0, 8.0, 8.0], [0.0, 8.0, 8.0, 8.0], [16.0, 0.0, 8.0, 8.0], [8.0, 16.0, 8.0, -8.0],
-                        [24.0, 8.0, 8.0, 8.0], [16.0, 8.0, 8.0, 8.0]]
-                } else {
-                    [old_faces[0], old_faces[1], old_faces[5], old_faces[4], old_faces[2], old_faces[3]]
-                };
-            }
-            // Keep the bone names: they are what armour and the held item attach to. The lying
-            // face is mapped explicitly, so the engine's skin layer and head look have nothing
-            // to change here.
-            part
-        })
-        .collect();
-    Model { parts, uv: standing.uv }
+    model
 }
 
 pub fn register(r: &mut Registry) {
@@ -90,6 +49,7 @@ pub fn register(r: &mut Registry) {
     r.entity(&CORPSE_SKELETON)
         .no_egg()
         .size(0.6, 1.8)
+        .hitboxes(Hitboxes::humanoid())
         .equipment()
         .model(lying_humanoid())
         .texture("skeleton");
@@ -101,6 +61,7 @@ pub fn register(r: &mut Registry) {
         .no_egg()
         .size(0.6, 1.8)
         .eye_height(1.62)
+        .hitboxes(Hitboxes::humanoid())
         .passive()
         .invulnerable()
         .kinematic()
